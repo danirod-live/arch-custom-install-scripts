@@ -1,0 +1,15 @@
+#!/bin/sh
+
+# A bootstrap script designed to be used in the virtual machine environment.
+
+set -e
+
+(cd / && \
+	curl -O https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/step1.sh && \
+	curl -O https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/step2.sh && \
+	curl -O https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/step3.sh && \
+	curl -O https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/step_refind.sh && \
+	chmod +x /step1.sh /step2.sh /step3.sh /step_refind.sh)
+
+PART_ROOT=/dev/vda2 PART_UEFI=/dev/vda1 PART_SWAP=/dev/vda3 /step1.sh
+/step_refind.sh
