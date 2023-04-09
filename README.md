@@ -25,8 +25,7 @@ them before use. This repository is a public backup.
 ### What I wish the scripts could do (TO-DO list)
 
 * They could install BitWarden already.
-* They could download my SSH key from my BitWarden account.
-* They could download my GPG key from my BitWarden account.
+* They could download my SSH key from my BitWarden account.  They could download my GPG key from my BitWarden account.
 * They could configure my GPG keys already.
 * They could skip setting up a bootloader (for dualboot or tripleboot systems,
   I use refind in my computers anyway).
@@ -98,3 +97,15 @@ TODO: And this is why I think that rolling a custom archiso would be quicker!
 The last stage needs to be run from the target system. Boot the system into the user account and
 
 `curl -L https://raw.github.com/danirod/arch-custom-install-scripts/trunk/step_i3.sh | sh`
+
+## Quick procedure for virtual machines
+
+NOTE: This assumes that the disk was initialized with ./diskctl.sh create and that there are three partitions:
+
+* /dev/vda1 for the ESP
+* /dev/vda2 for the main system install
+* /dev/vda3 for the swap
+
+This is meant to be run on known environments and data destruction or failure is possible if run on a different environment.
+
+`curl https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/kvm | sh`
