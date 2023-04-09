@@ -1,159 +1,100 @@
-## Ideas
+# arch-custom-install-scripts
 
-* PKGBUILD to install my desktop settings (`pacman -S danirod-desktop-i3`) -- not in AUR, is internal for me
-* Build server, local repository
+These are my custom install scripts for Arch Linux. I use them to reset my system or to deploy a new
+Arch installation to a different machine. I also use them to create my virtual machines used to
+record my content for some of my YouTube channels.
 
-# TODO: update README (ironic)
+Please, note that these are mine. If they work for you, that's fine, but you'll probably need to tweak
+them before use. This repository is a public backup.
 
-## Virtual machine spawning
+## The scripts
 
-The install.sh script will spawn a UEFI machine, so make sure to follow the UEFI procedure if you lookup online.
+* step1.sh: used in the arch-install phase, it bootstraps the partitions of an UEFI system installation.
+* step2.sh: used in the arch-chroot phase, it installs the base system.
+* step3.sh: used in the post-install phase (at the moment), it installs my dotfiles and base apps.
+* Extra scripts: `step_i3.sh`... should set the window manager and other specific tweaks. As I need to
+  deploy more virtual machines to record other kinds of videos, I'll probably have other install scripts
+	(step_xfce, step_kde, step_gnome...).
 
-The uninstall.sh script will remove the previously created machine with install.sh.
+### What do the scripts do
 
-They both use libvirt and QEMU/KVM if available. Remember to start the network beforehand.
+* They install Arch Linux.
+* They install my config.
+* They install a desktop environment.
 
-## SSH server
+### What I wish the scripts could do (TO-DO list)
 
-Encouraged to spawn an SSH server as soon as the installation boots. `passwd` and then you can `ssh root@archiso`
+* They could install BitWarden already.
+* They could download my SSH key from my BitWarden account.
+* They could download my GPG key from my BitWarden account.
+* They could configure my GPG keys already.
+* They could skip setting up a bootloader (for dualboot or tripleboot systems,
+  I use refind in my computers anyway).
 
-## Installation commands
+### What the scripts will not do
 
-### Arch Linux installation
+* They will not partition the drive (it should be done before starting the scripts).
+* They will not reconfigure refind for you.
 
-* `fdisk /dev/vda`
-  - `g` to create a GPT table
-	- `n 1 <Enter> +512M` + `t 1 uefi` to create the ESP
-	- `n 2 <Enter> -1G` + `t 2 linux` to create a standard root
-	- `n 3 <Enter> <Enter>` + `t 3 swap` to create a swap
-	- `p` to verify
-	- `w` to write and exit
-* Format:
-  - `mkfs.fat -F32 /dev/vda1`
-	- `mkfs.ext4 /dev/vda2`
-	- `mkswap /dev/vda3`
-* Mount:
-  - `mount /dev/vda2 /mnt`
-	- `mount --mkdir /dev/vda1 /mnt/boot/efi`
-	- `swapon /dev/vda3`
-* System install
-  - `pacstrap -K /mnt base base-devel linux linux-firmware`
-	- `genfstab -U /mnt >> /mnt/etc/fstab`
-* System configuration
-	- `arch-chroot /mnt`
-	- `ln -sf /usr/share/zoneinfo/Region/City /etc/localtime`
-	- `hwclock --systohc`
-	- `sed -i 's/#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen`
-	- `locale-gen`
-	- `echo LANG=en_US.UTF-8 > /etc/locale.conf`
-	- `echo KEYMAP=en > /etc/vconsole.conf`
-	- `mkinitcpio -P`
-  - `passwd`
-* Network
-	- `echo archvm.local > /etc/hostname`
-	- `systemctl enable systemd-networkd`
-	- `systemctl enable systemd-resolved`
-	- systemd-wired.network → /etc/systemd/network/wired.network
-* SSH server
-  - `pacman -S openssh`
-	- `systemctl enable sshd`
-* GRUB (in my host machine there will also be a refind installation to handoff to GRUB, FreeBSD or Windows depending on the day)
-	- `pacman -S grub efibootmgr`
-	- `grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB`
-	- `grub-mkconfig -o /boot/grub/grub.cfg`
-* User creation
-  - `pacman -S sudo`
-	- `echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers`
-	- `echo "Defaults lecture=never" >> /etc/sudoers`
-	- `visudo` and allow the wheel group
-	- `useradd -m -G sys,network,users,video,storage,lp,input,audio,wheel -s /bin/bash danirod`
-	- `passwd danirod`
-* reboot
+## The qcow2 factory
 
-### Post configuration
+Powered by libvirt and QEMU, this makes easy to spin virtual machines with the scripts.
 
-* yay (makepkg refuses to do this as root, do it once installed)
-  - `sudo pacman -S git`
-	- `git clone https://aur.archlinux.org/yay.git`
-	- `cd yay`
-	- `makepkg -sci`
-	- `cd ..`
-	- `rm -rf yay`
-* dotfiles
-  - `sudo pacman -S stow tmux`
-  - `git clone https://github.com/danirod/dotfiles .dotfiles`
-  - `rm .bash*`
-  - `cd .dotfiles`
-	- `git submodule init`
-	- `git submodule update`
-  - `stow home`
-  - `stow i3`
-	- `cd ..`
-	- `tmux` and press `Ctrl-A Shift-I` and leave tmux
-* vim
-  - `sudo pacman -S vim`
-  - `git clone https://github.com/danirod/vimrc .vim`
-	- `cd .vim`
-	- `git submodule init`
-	- `git submodule update`
-* More packages to install
-	- gnupg
-	- fzf
-	- bat
-	- ripgrep
-	- diff-so-fancy
-	- tig
-	- rsync
-	- ranger
-	- w3m
-	- newsboat
-	- net-tools
-	- man-db
-	- man-pages
-	- gnome-keyring
+So my flow would be to eventually have a script that spins virtual machines using virt-install or
+straight qemu commands. I'd keep a read-only QCOW2 hard drive that I'd duplicate so that I can
+break a virtual machine safely.
 
-### Packages required to boot the system interface
+However, the QCOW2 hard drive would eventually come out of date or maybe I could lose it, so
+having the QCOW2 factory being able to generate brand new virtual hard drives using these scripts
+is a nice to have.
 
-* X11 server (required for i3):
-  - xorg-server
-	- xf86-video-vesa (or whatever)
-* Desktop shell
-  - i3-wm
-	- i3lock-fancy-multimonitor
-	- alacritty
-	- picom
-	- polybar
-	- rofi
-	- hsetroot
-	- dunst
-* Fonts
-  - ttf-ubuntu-font-family
-	- ttf-icomoon-feather
-	- ttf-dejavu
-	- ttf-liberation
-	- noto-fonts
-* Icon themes and cursors
-  - nordzy-icon-theme-git
-	- xcursor-openzone
-* Login manager (personal preference is sddm reading my .xinitrc)
-	- xorg-xinit
-	- xinit-xsession
-	- sddm
-	- archlinux-themes-sddm
-* GUI apps
-  - thunar
-  - firefox
-		- jack2 (prevent installation of full pipewire)
+### Grab Arch Linux ISO
 
-### Other configurations
+Download the latest Arch Linux install CD and place it into archlinux.iso in this directory.
 
-* X11 locale
-  - `sudo localectl set-x11-keymap es`
-* Enable services
-  - systemctl enable --user pulseaudio
+### diskctl
 
-### SDDM configuration
+It can be used to manage the qcow2 files. By default, it will work with a virtual hard drive located
+at archlinux.qcow2 file. This can be changed using the `TARGET_FILE` environment variable.
 
-* sudo systemctl enable sddm
-* sddm-theme.conf in the /etc/sddm.conf.d/theme.conf
+Commands:
 
+* `./diskctl.sh create`. Creates a new preparitioned disk. It depends on
+  qemu-nbd in order to mount the QCOW2 file into the system, so having
+  `qemu-img` (or whoever provides qemu-nbd) and the nbd kernel module loaded
+  are dependencies.
+* `./diskctl.sh sparse`. Reclaims the free space in the virtual disk. It
+  depends on virt-sparsify to do this, so `guestfs-tools` (or whoever provides
+  virt-sparsify) is required as a dependency.
+
+### Install the system
+
+These steps depend on `virt-install` and `virsh` to work. SSH is required too.
+
+The point is to start a new virtual machine using the created qcow2 hard drive and install Arch Linux
+from the CD-ROM into the hard drive. The thing is that we need to copy things from the outside world
+via SSH, so we need to set the password beforehand, which unfortunately is not set for the live
+environment. This causes the number of steps to quickly grow.
+
+TODO: And this is why I think that rolling a custom archiso would be quicker!
+
+* `./bootstrap.sh create-vm` to create the virtual machine. It will exit to support headless.
+* `./bootstrap.sh attach-vm` to attach to the virtual machine.
+  * (Inside the VM) `passwd root` to se the password for root.
+  * (Ctrl-C the terminal where you ran `./bootstrap.sh attach-vm` to disconnect)
+* `./bootstrap.sh copy-base` to copy the install scripts. Type the password when needed.
+* `./bootstrap.sh ssh` to SSH into the machine. Type the password when needed.
+  * `PART_ROOT=/dev/vda2 PART_UEFI=/dev/vda1 PART_SWAP=/dev/vda3 /step1.sh` to start the installation.
+  * This will install the entire base system into the computer, running all the required scripts.
+  * Eventually it will ask for the password for `root` and for `danirod` accounts.
+  * `poweroff` once done. Or just exit the SSH session and `./bootstrap.sh stop-vm`.
+
+### Delete the virtual machine?
+
+`./bootstrap.sh delete-vm`. It will not delete the qcow2 file.
+
+### Install the desktop environment
+
+The last stage needs to be run from the target system. Boot the system into the user account and
+
+`curl -L https://raw.github.com/danirod/arch-custom-install-scripts/trunk/step_i3.sh | sh`

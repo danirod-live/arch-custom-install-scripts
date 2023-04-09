@@ -12,13 +12,26 @@ yay -S --cleanafter --batchinstall --noconfirm \
 	archlinux-themes-sddm firefox jack2 \
 	noto-fonts
 
+# Configure locale
 sudo localectl set-x11-keymap es
-systemctl enable --user pulseaudio
-sudo systemctl enable sddm
 
+# Configure pulseaudio -- todo: pipewire time
+systemctl enable --user pulseaudio
+
+# Configure SDDM
+sudo systemctl enable sddm
 sudo mkdir -p /etc/sddm.conf.d
 cat <<EOF | sudo tee /etc/sddm.conf.d/theme.conf
 [Theme]
 Current=archlinux-simplyblack
 CursorTheme=OpenZone_White
+Font=Ubuntu Mono
 EOF
+cat <<EOF | sudo tee /var/lib/sddm/state.conf
+[Last]
+User=danirod
+Session=/usr/share/xsessions/xinitrc.desktop
+EOF
+
+# Cleanup the cache
+yes | sudo pacman -Scc

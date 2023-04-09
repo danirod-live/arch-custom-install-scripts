@@ -49,4 +49,3 @@ echo "Defaults lecture=never" >> /etc/sudoers
 useradd -m -G sys,network,users,video,storage,lp,input,audio,wheel -s /bin/bash danirod
 echo "Type the password for danirod:"
 passwd danirod
-cp /step3.sh /home/danirod
