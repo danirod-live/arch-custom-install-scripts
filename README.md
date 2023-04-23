@@ -108,4 +108,4 @@ NOTE: This assumes that the disk was initialized with ./diskctl.sh create and th
 
 This is meant to be run on known environments and data destruction or failure is possible if run on a different environment.
 
-`curl https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/kvm | sh`
+`sh -c "$(curl https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/kvm)"`

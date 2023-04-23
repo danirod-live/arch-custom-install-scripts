@@ -94,7 +94,7 @@ connect_ssh() {
 }
 
 copy_base_files() {
-	scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no step1.sh step2.sh step3.sh root@$(get_ip):/
+	scp -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no install.sh root@$(get_ip):/
 }
 
 # Must have information about what to do

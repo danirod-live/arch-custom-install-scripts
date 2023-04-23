@@ -4,13 +4,16 @@ yay -S --cleanafter --batchinstall --noconfirm \
 	--nocleanmenu --nodiffmenu --removemake \
 	xorg-server xf86-video-vesa i3-wm \
 	i3lock-fancy-multimonitor alacritty \
-	picom polybar rofi hsetroot dunst \
+	polybar rofi hsetroot dunst \
   ttf-ubuntu-font-family ttf-icomoon-feather \
 	ttf-dejavu ttf-liberation noto-fonts \
 	nordzy-icon-theme xcursor-openzone \
 	xorg-xinit xinit-xsession sddm pulseaudio \
 	archlinux-themes-sddm firefox jack2 \
 	noto-fonts
+
+# Install i3 dotfiles
+(cd .dotfiles && stow i3)
 
 # Configure locale
 sudo localectl set-x11-keymap es
