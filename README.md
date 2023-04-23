@@ -75,15 +75,13 @@ from the CD-ROM into the hard drive. The thing is that we need to copy things fr
 via SSH, so we need to set the password beforehand, which unfortunately is not set for the live
 environment. This causes the number of steps to quickly grow.
 
-TODO: And this is why I think that rolling a custom archiso would be quicker!
-
 * `./bootstrap.sh create-vm` to create the virtual machine. It will exit to support headless.
 * `./bootstrap.sh attach-vm` to attach to the virtual machine.
   * (Inside the VM) `passwd root` to se the password for root.
   * (Ctrl-C the terminal where you ran `./bootstrap.sh attach-vm` to disconnect)
-* `./bootstrap.sh copy-base` to copy the install scripts. Type the password when needed.
+* `./bootstrap.sh copy-base` to copy the install script. Type the password when needed.
 * `./bootstrap.sh ssh` to SSH into the machine. Type the password when needed.
-  * `PART_ROOT=/dev/vda2 PART_UEFI=/dev/vda1 PART_SWAP=/dev/vda3 /step1.sh` to start the installation.
+  * `PART_ROOT=/dev/vda2 PART_UEFI=/dev/vda1 PART_SWAP=/dev/vda3 /install.sh` to start the installation.
   * This will install the entire base system into the computer, running all the required scripts.
   * Eventually it will ask for the password for `root` and for `danirod` accounts.
   * `poweroff` once done. Or just exit the SSH session and `./bootstrap.sh stop-vm`.
@@ -96,7 +94,7 @@ TODO: And this is why I think that rolling a custom archiso would be quicker!
 
 The last stage needs to be run from the target system. Boot the system into the user account and
 
-`curl -L https://raw.github.com/danirod/arch-custom-install-scripts/trunk/step_i3.sh | sh`
+`sh -c "$(curl -L https://arch.danirod.es/step_i3.sh)"`
 
 ## Quick procedure for virtual machines
 
@@ -108,4 +106,4 @@ NOTE: This assumes that the disk was initialized with ./diskctl.sh create and th
 
 This is meant to be run on known environments and data destruction or failure is possible if run on a different environment.
 
-`sh -c "$(curl https://raw.githubusercontent.com/danirod/arch-custom-install-scripts/trunk/kvm)"`
+`sh -c "$(curl -L https://arch.danirod.es/kvm)"`
