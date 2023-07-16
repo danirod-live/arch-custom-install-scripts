@@ -1,0 +1,26 @@
+#!/bin/sh
+
+# A bootstrap script designed to be used in the virtual machine environment.
+# It should only be used for virtual machines whose hard drive was created with
+# scripts/diskctl, since it uses the partition scheme created with it.
+# It installs refind after installing the base system.
+#
+# Usage:
+# 	curl https://arch.danirod.es/install/kvm | sh
+#
+# You can override ARCH_ROOT to change the host, which is useful during development.
+# For instance, serve the install scripts over HTTP with a command like
+# python -m http.server 9000, then run the script setting the environment variable
+# ARCH_ROOT to http://localhost:9000.
+#
+#  curl http://localhost:9000/install/kvm | ARCH_ROOT=http://localhost:9000 sh
+
+ARCH_ROOT=${ARCH_ROOT:-https://arch.danirod.es}
+
+set -e
+
+curl $ARCH_ROOT/install/system | PART_ROOT=/dev/sda2 PART_UEFI=/dev/sda1 PART_SWAP=/dev/sda3 sh
+curl $ARCH_ROOT/install/refind | sh
+
+# Install QXL since the KVM guests will probably switch to Spice anyway
+pacstrap -K /mnt xf86-video-qxl spice-vdagent

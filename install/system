@@ -1,0 +1,220 @@
+#!/bin/sh
+
+set -e
+cd "$(dirname $0)"
+
+# Configuration depends on the dialog program, so make sure that it is installed in the host machine.
+# Since this is happening in the Live CD environment, this will not be in the final image and it
+# doesn't need to cleanup.
+pacman -Sy
+pacman -Q dialog || (pacman -S --noconfirm dialog)
+
+# Stop the program with an error.
+function dialog_stop() {
+	dialog --stdout --aspect 40 --infobox "$1" 0 0
+	exit 1
+}
+
+# Request for some input. If the input is not given or if the dialog is cancelled, the application stops.
+function dialog_input() {
+	# Request for a prompt.
+	value=$(dialog --erase-on-exit --aspect 40 --stdout --backtitle "Arch configuration script" --inputbox "$1" 0 0)
+	if [ "$?" -ne 0 ]; then
+		dialog_stop "User cancelled"
+	fi
+	# Test that the prompt is not empty.
+	if [ -z "$value" ]; then
+		dialog_stop "A value for this field was not provided"
+	fi
+	echo "$value"
+}
+
+function dialog_password() {
+	# Request the standard password.
+	value=$(dialog --erase-on-exit --aspect 40 --stdout --insecure --backtitle "Arch configuration script" --passwordbox "$1" 0 0)
+	if [ "$?" -ne 0 ]; then
+		dialog_stop "User cancelled"
+	fi
+	if [ -z "$value" ]; then
+		dialog_stop "A password was not provided"
+	fi
+	# Make sure that the password is typed correctly.
+	repeat=$(dialog --erase-on-exit --aspect 40 --stdout --insecure --backtitle "Arch configuration script" --passwordbox "(Please repeat.) $1" 0 0)
+	if [ "$?" -ne 0 ]; then
+		dialog_stop "User cancelled"
+	fi
+	if [ "$value" != "$repeat" ]; then
+		dialog_stop "The passwords do not match"
+	fi
+	echo "$value"
+}
+
+function dialog_partition() {
+	local options=$(lsblk -rp -o name,size,type | grep part | awk '{ print $2 " " $3 }')
+	value=$(dialog --erase-on-exit --aspect 40 --stdout --backtitle "Arch configuration script" --menu "$1" 0 0 0 $options)
+	if [ "$?" -ne 0 ]; then
+		dialog_stop "User cancelled"
+	fi
+	echo "$value"
+}
+
+function dialog_network() {
+	local options=$(networkctl list --no-legend | awk '{ print $2 " " $2 }')
+	value=$(dialog --erase-on-exit --aspect 40 --stdout --backtitle "Arch configuration script" --menu "$1" 0 0 0 $options)
+	if [ "$?" -ne 0 ]; then
+		dialog_stop "User cancelled"
+	fi
+	echo "$value"
+}
+
+# Make sure that the partitions have been given. Set some values if doesn't.
+if [ -z "$PART_ROOT" ]; then
+	PART_ROOT=$(dialog_partition "Root partition (where the system is going to be installed)")
+fi
+if [ -z "$PART_UEFI" ]; then
+	PART_UEFI=$(dialog_partition "UEFI partition (where the EFI bootloader will be installed)")
+fi
+if [ -z "$PART_SWAP" ]; then
+	PART_SWAP=$(dialog_partition "Swap partition (used for the swap area)")
+fi
+
+# Partitions must be different from each other.
+if [ "$PART_UEFI" == "$PART_ROOT" ]; then
+	dialog_stop "UEFI partition must be different from root partition!"
+fi
+if [ "$PART_SWAP" == "$PART_ROOT" ]; then
+	dialog_stop "Swap partition must be different from root partition!"
+fi
+if [ "$PART_SWAP" == "$PART_UEFI" ]; then
+	dialog_stop "Swap partition must be different from UEFI partition!"
+fi
+
+# Now that the checking is done, make sure that environment variables are there.
+set -o nounset
+
+# Request for the system configuration.
+CFG_ROOTPWD=$(dialog_password "Provide the root password:")
+CFG_USERNAME=$(dialog_input "Provide the username account:")
+CFG_USERPWD=$(dialog_password "Provide the username password:")
+CFG_HOSTNAME=$(dialog_input "Provide the machine hostname:")
+CFG_INET=$(dialog_network "Provide the network interface (enp0s3, enp1s0...):")
+
+##################################################
+# And now, each one of the functions.
+##################################################
+
+format_partitions() {
+	echo "* Formatting system partitions..."
+	mkfs.ext4 $PART_ROOT
+	mkfs.fat -F32 $PART_UEFI
+	mkswap $PART_SWAP
+}
+
+mount_partitions() {
+	echo "* Mounting system partitions..."
+	mount $PART_ROOT /mnt
+	mount $PART_UEFI /mnt/boot/efi --mkdir
+	swapon $PART_SWAP
+}
+
+configure_pacstrap() {
+	echo "* Configuring pacstrap..."
+	sed -i 's/#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
+	sed -i 's/#VerbosePkgLists/VerbosePkgLists/' /etc/pacman.conf
+}
+
+bootstrap_system() {
+	echo "* Bootstrapping the system..."
+	pacstrap -K /mnt base base-devel linux linux-firmware
+	genfstab -U /mnt >> /mnt/etc/fstab
+}
+
+second_stage_script() {
+	echo "* Running second stage configuration..."
+	arch-chroot /mnt /bin/bash <<-EOFMAIN
+ln -sf /usr/share/zoneinfo/Europe/Madrid /etc/localtime
+hwclock --systohc
+
+sed -i 's/#en_US.UTF-8/en_US.UTF-8/' /etc/locale.gen
+locale-gen
+echo LANG=en_US.UTF-8 > /etc/locale.conf
+echo KEYMAP=es > /etc/vconsole.conf
+
+sed -i 's/#ParallelDownloads/ParallelDownloads/' /etc/pacman.conf
+sed -i 's/#VerbosePkgLists/VerbosePkgLists/' /etc/pacman.conf
+
+echo $CFG_HOSTNAME > /etc/hostname
+systemctl enable systemd-networkd
+systemctl enable systemd-resolved
+cat <<EOF >/etc/systemd/network/wired.network
+[Match]
+Name=$CFG_INET
+
+[Network]
+DHCP=yes
+EOF
+
+# SSH server
+pacman -S openssh --noconfirm
+systemctl enable sshd
+
+# GRUB
+pacman -S grub efibootmgr --noconfirm
+grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=GRUB
+grub-mkconfig -o /boot/grub/grub.cfg
+
+# Set the root password
+echo root:$CFG_ROOTPWD | chpasswd
+
+# Create user
+pacman -S sudo --noconfirm
+echo "%wheel ALL=(ALL:ALL) ALL" >> /etc/sudoers
+echo "Defaults lecture=never" >> /etc/sudoers
+useradd -m -G sys,network,users,video,storage,lp,input,audio,wheel -s /bin/bash $CFG_USERNAME
+echo $CFG_USERNAME:$CFG_USERPWD | chpasswd
+EOFMAIN
+}
+
+third_stage_script() {
+echo "* Running third stage configuration..."
+arch-chroot /mnt /bin/bash <<-EOFMAIN
+pacman -Sy --noconfirm git stow tmux vim gnupg fzf \
+bat ripgrep diff-so-fancy tig rsync ranger w3m newsboat \
+net-tools man-db man-pages
+
+git clone https://aur.archlinux.org/yay-bin.git /tmp/yay-bin
+chown -R nobody:nobody /tmp/yay-bin
+pushd /tmp/yay-bin
+sudo -u nobody makepkg
+pacman --noconfirm -U /tmp/yay-bin/*.tar.zst
+popd
+
+rm -f /home/$CFG_USERNAME/.bash*
+sudo -u $CFG_USERNAME git clone https://github.com/danirod/dotfiles /home/$CFG_USERNAME/.dotfiles
+sudo -u $CFG_USERNAME git clone https://github.com/danirod/vimrc /home/$CFG_USERNAME/.vim
+sudo -u $CFG_USERNAME git -C /home/$CFG_USERNAME/.dotfiles submodule init
+sudo -u $CFG_USERNAME git -C /home/$CFG_USERNAME/.dotfiles submodule update
+sudo -u $CFG_USERNAME git -C /home/$CFG_USERNAME/.vim submodule init
+sudo -u $CFG_USERNAME git -C /home/$CFG_USERNAME/.vim submodule update
+sudo -u $CFG_USERNAME stow -d /home/$CFG_USERNAME/.dotfiles/ home
+EOFMAIN
+}
+
+cleanup() {
+	echo "* Cleaning up the cache..."
+	yes | arch-chroot /mnt pacman -Scc
+}
+
+###################################################
+# This is the main installation script.
+# All the functions are defined below.
+###################################################
+format_partitions
+mount_partitions
+configure_pacstrap
+bootstrap_system
+second_stage_script
+third_stage_script
+cleanup
+echo
+echo "The computer is ready to rock"

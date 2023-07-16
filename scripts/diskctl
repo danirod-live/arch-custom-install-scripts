@@ -11,28 +11,31 @@ if [ -z "$TARGET_NBD" ]; then
 	TARGET_NBD=/dev/nbd0
 fi
 
-if [ -z "$TARGET_FILE" ]; then
-	TARGET_FILE=archlinux.qcow2
-fi
-
-cd "$(dirname $0)"
-set -e
-
 help() {
 	echo "$0 [action]"
 	echo "Actions:"
 	echo
 	echo "  create  :: creates a base QCOW2 pre-partitioned image"
 	echo "  sparse  :: sparses the QCOW2 image to reclaim host space"
+	echo "  derive  :: creates a new QCOW2 image which is backed by an existing one"
 	echo "  help    :: print help message"
+	echo
+	echo "    create [target-file]"
+	echo "    sparse [target-file]"
+	echo "    derive [source-file] [target-file]"
 }
 
 create() {
+	if [ -z "$1" ]; then
+		echo "Missing target-file"
+		exit 1
+	fi
+
 	# Create the image file.
-	qemu-img create -f qcow2 "$TARGET_FILE" 20G -q
+	qemu-img create -f qcow2 "$1" 20G -q
 	# Mount it and format it
 	echo "Interacting with the nbd system... you might be asked for your password here"
-	sudo qemu-nbd -c "$TARGET_NBD" -f qcow2 "$TARGET_FILE"
+	sudo qemu-nbd -c "$TARGET_NBD" -f qcow2 "$1"
 	sudo sfdisk -q "$TARGET_NBD" <<EOF
 	label: gpt
 	unit: sectors
@@ -45,11 +48,38 @@ create() {
 	/dev/nbd0p3 : start=    39845888, size=     2095104, type=0657FD6D-A4AB-43C4-84E5-0933C84B4F4F
 EOF
 	sudo qemu-nbd --disconnect "$TARGET_NBD"
-	echo "Successfully initialised $TARGET_FILE!"
+	echo "Successfully initialised $1!"
 }
 
 sparse() {
-	virt-sparsify --in-place "$TARGET_FILE"
+	if [ -z "$1" ]; then
+		echo "Missing target-file"
+		exit 1
+	fi
+	backing_opts=""
+	if [ -n "$2" ]; then
+		echo "Given backing-file: $2"
+		backing_opts="-B $2 -F qcow2"
+	fi
+
+	mv "$1" "$1.orig"
+	qemu-img convert -O qcow2 "$1.orig" "$1" $backing_opts
+	echo "Sparsed. Verify data integrity, then remove $1.orig"
+}
+
+derive() {
+	source_file="$1"
+	target_file="$2"
+	if [ -z "$source_file" ]; then
+		echo "Missing backing file"
+		exit 1
+	fi
+	if [ -z "$target_file" ]; then
+		echo "Missing target file"
+		exit1
+	fi
+	qemu-img create -q -f qcow2 -o backing_file="$source_file",backing_fmt=qcow2 "$target_file" 20G || exit 1
+	echo "Derived a new image in '$target_file' which is backed by '$source_file'."
 }
 
 # Must have information about what to do
@@ -62,7 +92,8 @@ action=$1
 shift 1
 case "$action" in
 	help) help ;;
-	create) create ;;
-	sparse) sparse ;;
+	create) create $* ;;
+	sparse) sparse $* ;;
+	derive) derive $* ;;
 	*) echo "Unknown option $option" ;;
 esac

@@ -1,0 +1,59 @@
+#!/bin/sh
+
+SOURCE_DIR=/usr/share/ovmf/x64
+TARGET_DIR=
+
+function print_help() {
+	echo "$0 -help -target[target_dir] [-source=[source_dir]]"
+	echo "  -help: prints the help"
+	echo "  -target: set the target dir where to put the OVMF data"
+	echo "  -source: set the source dir where to copy the OVMF data from"
+}
+
+for var in "$@"; do
+	case "$var" in
+		-help)
+			print_help
+			exit 0
+			;;
+		-source=*)
+			SOURCE_DIR=${var#-source=}
+			if [ -z "$SOURCE_DIR" ]; then
+				echo "Please provide a value for -source"
+				exit 1
+			fi
+			;;
+		-target=*)
+			TARGET_DIR=${var#-target=}
+			if [ -z "$TARGET_DIR" ]; then
+				echo "Please provide a value for -target"
+				exit 1
+			fi
+			;;
+		-source|-target)
+			echo "Please provide a value for $var"
+			exit 1
+			;;
+		*)
+			echo "Unknown parameter: $var"
+			exit 1
+			;;
+	esac
+done
+
+if ! [ -d "$SOURCE_DIR" ]; then
+	echo "$SOURCE_DIR does not exist or is not a directory"
+	exit 1
+fi
+if [ -z "$TARGET_DIR" ]; then
+	echo "Please provide a target directory with -target"
+	print_help
+	exit 1
+fi
+if ! [ -d "$TARGET_DIR" ]; then
+	echo "$TARGET_DIR does not exist or is not a directory"
+	exit 1
+fi
+
+ln -vsf $SOURCE_DIR/OVMF_CODE.fd $TARGET_DIR
+cp -v $SOURCE_DIR/OVMF_VARS.fd $TARGET_DIR

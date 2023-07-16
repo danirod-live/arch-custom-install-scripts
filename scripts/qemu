@@ -1,0 +1,75 @@
+#!/usr/bin/env bash
+
+# For once, I need bash here, because I am going to use arrays, which
+# is a feature that is not portable and thus I should not use /bin/sh.
+
+# The options. This array will have the additional QEMU options.
+extra_args=()
+
+# decode_variable... decodes a variable. Value is given in $1, prefix given in $2
+# Checks that the variable has a value after removing the prefix, also checks
+# that the file exists. Exits in case of error.
+function decode_variable() {
+	path=${1#$2=}
+	if [ -z "$path" ]; then
+		echo "Error: missing value for $2"
+		exit 1
+	fi
+	case "$3" in
+		file)
+			if ! [ -f "$path" ]; then
+				echo "Error: file '$path' not found as flag for $2"
+				exit 1
+			fi
+			;;
+		dir)
+			if ! [ -d "$path" ]; then
+				echo "Error: dir '$path' not found as flag for $2"
+				exit 1
+			fi
+			;;
+	esac
+	echo "$path"
+}
+
+# Decode the arguments.
+for var in "$@"; do
+	case "$var" in
+		-disk*)
+			path=$(decode_variable "$var" -disk file)
+			extra_args+=("-drive" "file=$path,index=0,media=disk")
+			;;
+		-iso*)
+			path=$(decode_variable "$var" -iso file)
+			extra_args+=("-drive" "file=$path,index=1,media=cdrom")
+			;;
+		-efi=*)
+			path=$(decode_variable "$var" -efi dir)
+			extra_args+=("-drive" "if=pflash,format=raw,unit=0,file=$path/OVMF_CODE.fd,read-only=on")
+			extra_args+=("-drive" "if=pflash,format=raw,unit=1,file=$path/OVMF_VARS.fd")
+			;;
+		-disk|-iso|-efi)
+			echo "Error: missing value for $var"
+			exit 1
+			;;
+		*)
+			echo "Unknown argument '$var'"
+			exit 1
+			;;
+	esac
+done
+
+# FIXME: missing args for spice configuring, I'm going to need virt-install to understand this one
+qemu-system-x86_64 \
+	--enable-kvm \
+	-machine q35 \
+	-device intel-iommu \
+	-smp 4 \
+	-cpu host,kvm=off \
+	-audiodev pa,id=snd0 \
+	-device ich9-intel-hda \
+	-device hda-output,audiodev=snd0 \
+	-nic user,model=virtio-net-pci,ipv6=off,model=e1000 \
+	"${extra_args[@]}" \
+	-display spice-app \
+	-m 4G

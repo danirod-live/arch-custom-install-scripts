@@ -7,5 +7,7 @@ sudo pacman -S --noconfirm gnome networkmanager
 sudo systemctl enable NetworkManager.service
 sudo systemctl enable gdm.service
 
+# TODO: change some GNOME defaults from here
+
 # Clean the cache
 yes | sudo pacman -Scc
